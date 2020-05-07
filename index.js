@@ -1,13 +1,83 @@
 const http = require('http');
-const fs = require('fs');
+const mysql = require('mysql');
 
-function makeTemplate(posts) {
+const conn = mysql.createConnection({
+    host: '',
+    user: '',
+    password: '',
+    database: ''
+});
+
+async function getPosts() {
+    conn.connect(err => {
+        if (err) {
+            throw err;
+        }
+        // console.log('Connected');
+    });
+
+    const posts = [];
+    // conn.query(`SELECT * FROM post`, (error, results, fields) => {
+    //     if (error) {
+    //         throw error;
+    //     }
+    //     // console.log(results);
+    //     for (let r of results) {
+    //         posts.push({
+    //             id: r.id,
+    //             title: r.title,
+    //             text: r.text,
+    //             views: r.views
+    //         });
+    //     }
+    // });
+    const postsPromise = new Promise((resolve, reject) => {
+        conn.query(`SELECT * FROM post`, (error, results, fields) => {
+            if (error) {
+                throw error;
+            }
+            // console.log(results);
+            for (let r of results) {
+                posts.push({
+                    id: r.id,
+                    title: r.title,
+                    writer: r.writer,
+                    postedDateTime: r.postedDateTime,
+                    views: r.views
+                });
+            }
+            resolve(posts);
+        });
+    });
+
+    conn.end();
+
+    return postsPromise;
+}
+
+function makeTableRows(posts) {
+    let tableRows = '';
+    for (let post of posts) {
+        tableRows += `
+        <tr>
+            <td>${post.id}</td>
+            <td>${post.title}</td>
+            <td>${post.writer}</td>
+            <td>${post.postedDateTime}</td>
+            <td>${post.views}</td>
+        </tr>`
+    }
+    return tableRows;
+}
+
+function makePostsTemplate(posts) {
+    const rows = makeTableRows(posts)
     return `<!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Document</title>
+        <title>Node.js 게시판</title>
     </head>
     <body>
         <table>
@@ -21,7 +91,7 @@ function makeTemplate(posts) {
                 </tr>
             </thead>
             <tbody>
-            ${posts}
+                ${rows}
             </tbody>        
         </table>
     </body>
@@ -41,8 +111,12 @@ const app = http.createServer((request, response) => {
     if (request.url === '/') {
         redirect('/posts', response);
     } else if (request.url === '/posts') {
-        response.writeHead(200);
-        response.end(makeTemplate(''));
+        const postsPromise = getPosts();
+        postsPromise.then(posts => {
+            const template = makePostsTemplate(posts);
+            response.writeHead(200);
+            response.end(template);
+        });
     } else if (request.url.startsWith('/posts/')) {
         const postNumber = request.url.slice(request.url.lastIndexOf('/') + 1);
         console.log(postNumber);
